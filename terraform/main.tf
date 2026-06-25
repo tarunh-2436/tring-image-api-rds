@@ -10,7 +10,7 @@ terraform {
 
   backend "s3" {
     bucket       = "tarun-terraform-state"
-    key          = "image-processing-api/terraform.tfstate"
+    key          = "image-processing-api-rds/terraform.tfstate"
     region       = "us-east-1"
     use_lockfile = true
   }
