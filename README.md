@@ -1,6 +1,6 @@
 # Tring Image Processing API
 
-A serverless image processing application built on AWS using Terraform. The system allows authenticated users to upload images through a web interface, stores them in Amazon S3 using presigned URLs, processes upload events asynchronously through Amazon SQS and AWS Lambda, stores image metadata in Amazon DynamoDB, and sends processing notifications using Amazon SNS.
+A serverless image processing application built on AWS using Terraform. The system allows authenticated users to upload images through a web interface, stores them in Amazon S3 using presigned URLs, processes upload events asynchronously through Amazon SQS and AWS Lambda, stores image metadata in Amazon RDS using a Postgres DB, and sends processing notifications using Amazon SNS.
 
 ---
 
