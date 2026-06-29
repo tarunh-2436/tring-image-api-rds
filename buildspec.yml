@@ -1,6 +1,7 @@
 version: 0.2
 
 phases:
+
   install:
     runtime-versions:
       python: 3.13
@@ -8,8 +9,13 @@ phases:
     commands:
       - python --version
       - pip --version
+
+      - echo "Installing Terraform..."
+      - curl -fsSL https://releases.hashicorp.com/terraform/1.13.1/terraform_1.13.1_linux_amd64.zip -o terraform.zip
+      - rm -f terraform
+      - unzip -o terraform.zip
+      - install -m 755 terraform /usr/local/bin/terraform
       - terraform version
-      - zip --version
 
   build:
     commands:
