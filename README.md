@@ -176,10 +176,10 @@ SNS --> Email
 4. The browser uploads the image directly to Amazon S3.
 5. An `ObjectCreated` event is delivered to Amazon SQS.
 6. The Processor Lambda consumes the queue message and extracts image metadata.
-7. PostgreSQL is updated with the processing results.
-8. Related Redis cache entries are invalidated.
+7. PostgreSQL is updated with the extracted metadata.
+8. The Redis cache for the processed image is invalidated.
 9. An SNS notification is published.
-10. The updated image metadata becomes available through the API.
+10. The updated metadata is returned on subsequent API requests.
 
 ---
 
@@ -295,12 +295,13 @@ Authorization: Bearer <access_token>
 
 # Redis Caching
 
+To improve read performance, the application uses a cache-aside strategy for individual image lookups.
+
 | Endpoint | Cache Strategy | TTL |
 |----------|----------------|-----|
-| `GET /images` | Cache Aside | 300 seconds |
 | `GET /images/{imageId}` | Cache Aside | 300 seconds |
 
-The cache is automatically invalidated whenever image metadata is updated by the processing pipeline.
+When an image is processed, the corresponding cache entry is automatically invalidated to ensure subsequent requests return the latest metadata.
 
 ---
 
@@ -421,7 +422,7 @@ terraform destroy
 - Fully serverless event-driven architecture
 - Automated CI/CD pipeline using AWS CodePipeline and CodeBuild
 - Automated PostgreSQL schema migration during deployment
-- Redis-based caching for improved read performance
+- Redis cache-aside implementation for individual image retrievalxxx  
 - CloudWatch monitoring with SNS alerting
 
 ---
