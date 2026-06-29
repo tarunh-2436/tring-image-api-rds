@@ -11,10 +11,9 @@ phases:
       - pip --version
 
       - echo "Installing Terraform..."
-      - curl -fsSL https://releases.hashicorp.com/terraform/1.13.1/terraform_1.13.1_linux_amd64.zip -o terraform.zip
-      - rm -f terraform
-      - unzip -o terraform.zip
-      - install -m 755 terraform /usr/local/bin/terraform
+      - curl -fsSL https://releases.hashicorp.com/terraform/1.13.1/terraform_1.13.1_linux_amd64.zip -o /tmp/terraform.zip
+      - unzip -o /tmp/terraform.zip -d /tmp
+      - install -m 755 /tmp/terraform /usr/local/bin/terraform
       - terraform version
 
   build:
