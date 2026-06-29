@@ -1,113 +1,197 @@
-# Tring Image Processing API
+# Tring Serverless Image Processing Platform
 
-A serverless image processing application built on AWS using Terraform. The system allows authenticated users to upload images through a web interface, stores them in Amazon S3 using presigned URLs, processes upload events asynchronously through Amazon SQS and AWS Lambda, stores image metadata in Amazon RDS using a Postgres DB, and sends processing notifications using Amazon SNS.
+A production-oriented serverless image processing platform built on AWS using Terraform. The application allows authenticated users to upload images directly to Amazon S3 using presigned URLs, processes uploads asynchronously through Amazon SQS and AWS Lambda, stores image metadata in Amazon RDS PostgreSQL, accelerates read performance using Amazon ElastiCache Redis, and automates infrastructure deployment through a CI/CD pipeline powered by AWS CodePipeline and CodeBuild.
 
 ---
 
-## Architecture
+# Architecture
 
-```text
-Frontend (HTML / JavaScript)
-            │
-            ▼
-      CloudFront
-            │
-            ▼
-     API Gateway (HTTP API)
-            │
-            ▼
-        API Lambda
-            │
-            ▼
-   Presigned S3 Upload URL
-            │
-            ▼
-         Amazon S3
-            │
-            ▼
-     S3 Event Notification
-            │
-            ▼
-         Amazon SQS
-            │
-            ▼
-    Processor Lambda
-            │
-     ┌──────┴──────┐
-     ▼             ▼
- DynamoDB         SNS
+```mermaid
+flowchart LR
+
+User([User])
+
+subgraph Frontend
+    CF[CloudFront]
+    Website[S3 Website]
+end
+
+subgraph Authentication
+    Cognito[Cognito]
+end
+
+subgraph Backend
+    API[API Gateway]
+    Lambda[API Lambda]
+end
+
+subgraph Storage
+    Uploads[(S3 Upload Bucket)]
+    Queue[SQS Queue]
+    Processor[Processor Lambda]
+    RDS[(PostgreSQL RDS)]
+    Redis[(Redis Cache)]
+end
+
+User --> CF
+CF --> Website
+
+Website -->|Login| Cognito
+Website -->|API Requests| API
+
+API --> Lambda
+
+Lambda --> Redis
+Redis --> RDS
+Lambda --> Uploads
+
+User -->|Upload Image| Uploads
+
+Uploads --> Queue
+Queue --> Processor
+
+Processor --> Uploads
+Processor --> RDS
+Processor --> Redis
 ```
 
 ---
 
-## Features
+# CI/CD Pipeline
 
-### Authentication
+```mermaid
+flowchart LR
 
-* Amazon Cognito User Pool
-* Cognito Hosted UI
-* OAuth 2.0 Authorization Code Flow
-* JWT-based API authorization
-* User-specific image ownership enforcement
-
-### Image Upload
-
-* Secure direct browser uploads using presigned S3 URLs
-* No image data passes through API Gateway or Lambda
-* Upload progress and preview support
-
-### Asynchronous Processing
-
-* S3 ObjectCreated events trigger processing workflow
-* SQS decouples storage and processing layers
-* Processor Lambda extracts metadata
-* DynamoDB updated after successful processing
-
-### Metadata Management
-
-* Stores:
-
-  * Image ID
-  * User ID
-  * Filename
-  * Content Type
-  * Extension
-  * File Size
-  * Processing Status
-  * Created Timestamp
-  * Processed Timestamp
-
-### Notifications
-
-* SNS notifications sent when processing completes successfully
-
-### Frontend
-
-* Cognito login/logout
-* Upload image preview
-* Image listing dashboard
-* Image metadata viewer
-* Full image preview modal
+GitHub --> CodePipeline
+CodePipeline --> CodeBuild
+CodeBuild --> Terraform
+Terraform --> AWS
+```
 
 ---
 
-# AWS Services Used
+# Monitoring
 
-| Service              | Purpose                            |
-| -------------------- | ---------------------------------- |
-| Amazon Cognito       | Authentication and user management |
-| API Gateway HTTP API | REST API                           |
-| AWS Lambda           | Business logic and processing      |
-| Amazon S3            | Image storage                      |
-| Amazon DynamoDB      | Metadata storage                   |
-| Amazon SQS           | Event buffering                    |
-| Amazon SNS           | Notifications                      |
-| Amazon CloudFront    | Frontend hosting                   |
-| Terraform            | Infrastructure as Code             |
+```mermaid
+flowchart LR
+
+API[API Lambda]
+Processor[Processor Lambda]
+RDS[(RDS)]
+Redis[(Redis)]
+SQS[(SQS)]
+
+API --> CloudWatch
+Processor --> CloudWatch
+RDS --> CloudWatch
+Redis --> CloudWatch
+SQS --> CloudWatch
+
+CloudWatch --> Alarms
+Alarms --> SNS
+SNS --> Email
+```
+
+---
+
+# Features
+
+### Authentication
+
+- Amazon Cognito User Pool
+- Cognito Hosted UI
+- OAuth 2.0 Authorization Code Flow
+- JWT-based API authorization
+- User ownership enforcement
+
+### Image Upload
+
+- Direct browser uploads using presigned S3 URLs
+- Secure uploads without routing image data through the API
+- Automatic metadata creation
+
+### Asynchronous Processing
+
+- S3 ObjectCreated notifications
+- Amazon SQS event buffering
+- Background processing with AWS Lambda
+- Automatic metadata extraction
+
+### Metadata Management
+
+- PostgreSQL metadata storage
+- Image status tracking
+- File information management
+- Timestamp auditing
+
+### Redis Caching
+
+- Cache-aside pattern
+- 300-second TTL
+- Automatic cache invalidation
+- Accelerated read performance
+
+### CI/CD
+
+- GitHub source integration
+- AWS CodePipeline
+- AWS CodeBuild
+- Terraform infrastructure deployment
+- Automated database migration
+- CloudFront cache invalidation
+
+### Monitoring
+
+- CloudWatch metrics
+- CloudWatch alarms
+- SNS email notifications
+- Infrastructure health monitoring
+
+---
+
+# Technology Stack
+
+| Category | Technologies |
+|----------|--------------|
+| Frontend | HTML, CSS, JavaScript |
+| Backend | Python, AWS Lambda |
+| Authentication | Amazon Cognito |
+| API | Amazon API Gateway |
+| Storage | Amazon S3 |
+| Database | Amazon RDS PostgreSQL |
+| Cache | Amazon ElastiCache Redis |
+| Messaging | Amazon SQS, Amazon SNS |
+| CDN | Amazon CloudFront |
+| Infrastructure | Terraform |
+| CI/CD | AWS CodePipeline, AWS CodeBuild |
+| Monitoring | Amazon CloudWatch |
+
+---
+
+# Processing Workflow
+
+1. User authenticates through Amazon Cognito.
+2. The frontend requests an image upload session from the API.
+3. The API creates an image metadata record in PostgreSQL and returns a presigned upload URL.
+4. The browser uploads the image directly to Amazon S3.
+5. An `ObjectCreated` event is delivered to Amazon SQS.
+6. The Processor Lambda consumes the queue message and extracts image metadata.
+7. PostgreSQL is updated with the processing results.
+8. Related Redis cache entries are invalidated.
+9. An SNS notification is published.
+10. The updated image metadata becomes available through the API.
 
 ---
 
 # API Endpoints
+
+| Method | Endpoint | Description |
+|---------|----------|-------------|
+| POST | `/images` | Create image metadata and generate a presigned upload URL |
+| GET | `/images` | List all images belonging to the authenticated user |
+| GET | `/images/{imageId}` | Retrieve image metadata and a download URL |
+
+---
 
 ## Create Image Upload
 
@@ -115,10 +199,8 @@ Frontend (HTML / JavaScript)
 
 ```http
 POST /images
-Authorization: Bearer <token>
+Authorization: Bearer <access_token>
 ```
-
-### Body
 
 ```json
 {
@@ -132,19 +214,19 @@ Authorization: Bearer <token>
 ```json
 {
   "imageId": "uuid",
-  "uploadUrl": "presigned-url"
+  "uploadUrl": "https://..."
 }
 ```
 
 ---
 
-## List User Images
+## List Images
 
 ### Request
 
 ```http
 GET /images
-Authorization: Bearer <token>
+Authorization: Bearer <access_token>
 ```
 
 ### Response
@@ -156,7 +238,7 @@ Authorization: Bearer <token>
       "imageId": "uuid",
       "filename": "example.jpg",
       "status": "COMPLETED",
-      "createdAt": "2026-06-19T05:57:17.598344+00:00"
+      "createdAt": "2026-06-29T09:45:00Z"
     }
   ]
 }
@@ -170,7 +252,7 @@ Authorization: Bearer <token>
 
 ```http
 GET /images/{imageId}
-Authorization: Bearer <token>
+Authorization: Bearer <access_token>
 ```
 
 ### Response
@@ -184,41 +266,41 @@ Authorization: Bearer <token>
     "extension": "jpg",
     "fileSize": 29222,
     "status": "COMPLETED",
-    "createdAt": "2026-06-19T05:57:17.598344+00:00",
-    "processedAt": "2026-06-19T05:57:30.326139+00:00"
+    "createdAt": "2026-06-29T09:45:00Z",
+    "processedAt": "2026-06-29T09:45:08Z"
   },
-  "downloadUrl": "presigned-url"
+  "downloadUrl": "https://..."
 }
 ```
 
 ---
 
-# DynamoDB Schema
+# Database Schema
 
-## Table
+## Images
 
-ImageMetadata
+| Column | Description |
+|---------|-------------|
+| image_id | Primary key |
+| owner_id | Cognito user identifier |
+| filename | Original filename |
+| content_type | MIME type |
+| extension | File extension |
+| file_size | Image size (bytes) |
+| status | Processing status |
+| created_at | Upload timestamp |
+| processed_at | Processing completion timestamp |
 
-### Partition Key
+---
 
-```text
-userId
-```
+# Redis Caching
 
-### Sort Key
+| Endpoint | Cache Strategy | TTL |
+|----------|----------------|-----|
+| `GET /images` | Cache Aside | 300 seconds |
+| `GET /images/{imageId}` | Cache Aside | 300 seconds |
 
-```text
-imageId
-```
-
-### Local Secondary Index
-
-```text
-CreatedAtIndex
-
-Partition Key: userId
-Sort Key: createdAt
-```
+The cache is automatically invalidated whenever image metadata is updated by the processing pipeline.
 
 ---
 
@@ -226,12 +308,12 @@ Sort Key: createdAt
 
 ```text
 uploads/
-└── {userId}/
+└── {ownerId}/
     └── {imageId}/
         └── {filename}
 ```
 
-Example:
+Example
 
 ```text
 uploads/
@@ -242,71 +324,35 @@ uploads/
 
 ---
 
-# Processing Workflow
+# Deployment
 
-1. User authenticates through Cognito.
-2. Frontend requests upload URL from API Gateway.
-3. API Lambda creates metadata record in DynamoDB.
-4. API Lambda returns presigned S3 upload URL.
-5. Browser uploads image directly to S3.
-6. S3 generates ObjectCreated event.
-7. Event is sent to SQS.
-8. Processor Lambda consumes SQS message.
-9. Lambda retrieves image metadata from S3.
-10. DynamoDB record updated with processing details.
-11. SNS notification published.
-12. Image appears as COMPLETED in frontend.
+Clone the repository:
 
----
-
-# Frontend Features
-
-### Upload
-
-* Image selection
-* Local image preview
-* Upload status indicator
-
-### Dashboard
-
-* List uploaded images
-* Display processing status
-* Refresh image list
-
-### Image Viewer
-
-* Full image preview
-* Metadata display
-* Processing information
-
-### Authentication Status
-
-* Logged In indicator
-* Logged Out indicator
-
----
-
-# Terraform Deployment
+```bash
+git clone https://github.com/<username>/tring-serverless-image-processing-platform.git
+cd tring-serverless-image-processing-platform
+```
 
 Initialize Terraform:
 
 ```bash
+cd terraform
 terraform init
 ```
 
-Review changes:
+Review the deployment:
 
 ```bash
 terraform plan
 ```
 
-Deploy infrastructure:
+Deploy the infrastructure:
 
 ```bash
 terraform apply
 ```
 
-Destroy infrastructure:
+Destroy the infrastructure:
 
 ```bash
 terraform destroy
@@ -314,58 +360,72 @@ terraform destroy
 
 ---
 
-# Project Structure
+# Repository Structure
 
 ```text
 .
-├── frontend/
-│   ├── index.html
-│   ├── scripts.js
-│   ├── styles.css
-│   └── config.js
+├── lambda/
+│   ├── api/
+│   ├── processor/
+│   ├── migration/
+│   └── pre_token_generation/
 │
 ├── terraform/
+│   ├── modules/
+│   │   ├── api_gateway/
+│   │   ├── cloudfront/
+│   │   ├── cognito/
+│   │   ├── codebuild/
+│   │   ├── codepipeline/
+│   │   ├── lambda/
+│   │   ├── networking/
+│   │   ├── notification/
+│   │   ├── rds/
+│   │   ├── redis/
+│   │   ├── s3/
+│   │   └── ...
+│   │
 │   ├── main.tf
 │   ├── variables.tf
 │   ├── outputs.tf
-│   └── modules/
+│   └── backend.tf
 │
-├── lambda/
-│   └── image-api/
-│       └── lambda_function.py
+├── website/
+│   ├── index.html
+│   ├── styles.css
+│   ├── scripts.js
+│   └── config.js.tpl
 │
-├── processor/
-│   └── lambda_function.py
-│
+├── buildspec.yml
 └── README.md
 ```
 
 ---
 
-# Security Considerations
+# Security
 
-* Direct S3 uploads through presigned URLs
-* No public bucket access
-* JWT-based authorization
-* User ownership validation
-* IAM least-privilege permissions
-* CloudFront HTTPS delivery
-* SQS decoupled processing architecture
+- OAuth 2.0 Authorization Code Flow
+- JWT-based API authorization
+- Private VPC networking for compute and data services
+- Presigned S3 uploads
+- Least-privilege IAM roles and policies
+- HTTPS delivery through Amazon CloudFront
+- Secrets managed using AWS Systems Manager Parameter Store
 
 ---
 
-# Future Enhancements
+# Project Highlights
 
-* Image thumbnail generation
-* Multiple image formats
-* Image transformations
-* Metadata search functionality
-* User-specific notifications
-* CloudWatch dashboards and alarms
-* CI/CD pipeline using AWS SAM or GitHub Actions
+- Infrastructure fully managed using Terraform
+- Modular Infrastructure-as-Code design
+- Fully serverless event-driven architecture
+- Automated CI/CD pipeline using AWS CodePipeline and CodeBuild
+- Automated PostgreSQL schema migration during deployment
+- Redis-based caching for improved read performance
+- CloudWatch monitoring with SNS alerting
 
 ---
 
 # Author
 
-Tarun Harish
+**Tarun Harish**
