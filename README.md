@@ -330,8 +330,8 @@ uploads/
 Clone the repository:
 
 ```bash
-git clone https://github.com/<username>/tring-serverless-image-processing-platform.git
-cd tring-serverless-image-processing-platform
+git clone https://github.com/tarunh-2436/tring-image-api-rds.git
+cd tring-image-api-rds
 ```
 
 Initialize Terraform:
@@ -388,8 +388,7 @@ terraform destroy
 │   │
 │   ├── main.tf
 │   ├── variables.tf
-│   ├── outputs.tf
-│   └── backend.tf
+│   └── outputs.tf
 │
 ├── website/
 │   ├── index.html
