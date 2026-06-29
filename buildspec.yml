@@ -19,6 +19,7 @@ phases:
       ###########################################################
 
       - echo "Packaging API Lambda..."
+      - zip --version
       - rm -f lambda/api/api.zip
       - rm -rf lambda/api/package
       - mkdir -p lambda/api/package
