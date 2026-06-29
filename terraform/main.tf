@@ -1343,3 +1343,292 @@ resource "aws_sns_topic_subscription" "email" {
 
   endpoint = var.notification_email
 }
+
+###############################################
+# Monitoring
+###############################################
+
+locals {
+
+  alarm_period              = 300
+  alarm_evaluation_periods  = 1
+
+}
+
+resource "aws_cloudwatch_metric_alarm" "api_lambda_errors" {
+
+  alarm_name          = "image-processing-api-errors"
+  alarm_description   = "API Lambda has reported errors."
+
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+
+  statistic           = "Sum"
+
+  period              = local.alarm_period
+
+  evaluation_periods  = local.alarm_evaluation_periods
+
+  threshold           = 1
+
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+
+    FunctionName = module.api_lambda.function_name
+  }
+
+  alarm_actions = [
+
+    module.notification_topic.topic_arn
+  ]
+
+  ok_actions = [
+
+    module.notification_topic.topic_arn
+  ]
+
+  tags = local.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "api_lambda_duration" {
+
+  alarm_name        = "image-processing-api-duration"
+
+  alarm_description = "API Lambda execution duration is high."
+
+  namespace         = "AWS/Lambda"
+
+  metric_name       = "Duration"
+
+  statistic         = "Average"
+
+  period            = local.alarm_period
+
+  evaluation_periods = local.alarm_evaluation_periods
+
+  threshold = 10000
+
+  comparison_operator = "GreaterThanThreshold"
+
+  treat_missing_data = "notBreaching"
+
+  dimensions = {
+
+    FunctionName = module.api_lambda.function_name
+  }
+
+  alarm_actions = [
+
+    module.notification_topic.topic_arn
+  ]
+
+  ok_actions = [
+
+    module.notification_topic.topic_arn
+  ]
+
+  tags = local.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "processor_lambda_errors" {
+
+  alarm_name = "image-processing-processor-errors"
+
+  alarm_description = "Processor Lambda has reported errors."
+
+  namespace = "AWS/Lambda"
+
+  metric_name = "Errors"
+
+  statistic = "Sum"
+
+  period = local.alarm_period
+
+  evaluation_periods = local.alarm_evaluation_periods
+
+  threshold = 1
+
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+
+  treat_missing_data = "notBreaching"
+
+  dimensions = {
+
+    FunctionName = module.processor_lambda.function_name
+  }
+
+  alarm_actions = [
+
+    module.notification_topic.topic_arn
+  ]
+
+  ok_actions = [
+
+    module.notification_topic.topic_arn
+  ]
+
+  tags = local.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "processor_lambda_duration" {
+
+  alarm_name = "image-processing-processor-duration"
+
+  alarm_description = "Processor Lambda execution duration is high."
+
+  namespace = "AWS/Lambda"
+
+  metric_name = "Duration"
+
+  statistic = "Average"
+
+  period = local.alarm_period
+
+  evaluation_periods = local.alarm_evaluation_periods
+
+  threshold = 10000
+
+  comparison_operator = "GreaterThanThreshold"
+
+  treat_missing_data = "notBreaching"
+
+  dimensions = {
+
+    FunctionName = module.processor_lambda.function_name
+  }
+
+  alarm_actions = [
+
+    module.notification_topic.topic_arn
+  ]
+
+  ok_actions = [
+
+    module.notification_topic.topic_arn
+  ]
+
+  tags = local.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "sqs_queue_depth" {
+
+  alarm_name = "image-processing-sqs-depth"
+
+  alarm_description = "SQS queue depth is high."
+
+  namespace = "AWS/SQS"
+
+  metric_name = "ApproximateNumberOfMessagesVisible"
+
+  statistic = "Average"
+
+  period = local.alarm_period
+
+  evaluation_periods = local.alarm_evaluation_periods
+
+  threshold = 10
+
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+
+  treat_missing_data = "notBreaching"
+
+  dimensions = {
+
+    QueueName = module.processing_queue.queue_name
+  }
+
+  alarm_actions = [
+
+    module.notification_topic.topic_arn
+  ]
+
+  ok_actions = [
+
+    module.notification_topic.topic_arn
+  ]
+
+  tags = local.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
+
+  alarm_name = "image-processing-rds-cpu"
+
+  alarm_description = "RDS CPU utilization is high."
+
+  namespace = "AWS/RDS"
+
+  metric_name = "CPUUtilization"
+
+  statistic = "Average"
+
+  period = local.alarm_period
+
+  evaluation_periods = local.alarm_evaluation_periods
+
+  threshold = 80
+
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+
+  treat_missing_data = "notBreaching"
+
+  dimensions = {
+
+    DBInstanceIdentifier = module.database.instance_id
+  }
+
+  alarm_actions = [
+
+    module.notification_topic.topic_arn
+  ]
+
+  ok_actions = [
+
+    module.notification_topic.topic_arn
+  ]
+
+  tags = local.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "redis_cpu" {
+
+  alarm_name = "image-processing-redis-cpu"
+
+  alarm_description = "Redis CPU utilization is high."
+
+  namespace = "AWS/ElastiCache"
+
+  metric_name = "CPUUtilization"
+
+  statistic = "Average"
+
+  period = local.alarm_period
+
+  evaluation_periods = local.alarm_evaluation_periods
+
+  threshold = 80
+
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+
+  treat_missing_data = "notBreaching"
+
+  dimensions = {
+
+    CacheClusterId = module.redis.cache_cluster_id
+  }
+
+  alarm_actions = [
+
+    module.notification_topic.topic_arn
+  ]
+
+  ok_actions = [
+
+    module.notification_topic.topic_arn
+  ]
+
+  tags = local.tags
+}

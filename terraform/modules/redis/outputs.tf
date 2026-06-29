@@ -21,3 +21,9 @@ output "port" {
 output "subnet_group_name" {
   value = aws_elasticache_subnet_group.this.name
 }
+
+output "cache_cluster_id" {
+  value = tolist(
+    aws_elasticache_replication_group.this.member_clusters
+  )[0]
+}
