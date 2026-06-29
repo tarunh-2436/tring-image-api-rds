@@ -6,11 +6,10 @@ phases:
       python: 3.13
 
     commands:
-      - echo "Installing Terraform..."
-      - curl -fsSL https://releases.hashicorp.com/terraform/1.13.1/terraform_1.13.1_linux_amd64.zip -o terraform.zip
-      - unzip terraform.zip
-      - mv terraform /usr/local/bin/
+      - python --version
+      - pip --version
       - terraform version
+      - zip --version
 
   build:
     commands:
