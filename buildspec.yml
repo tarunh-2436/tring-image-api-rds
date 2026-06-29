@@ -103,9 +103,7 @@ phases:
 
       - export MIGRATION_FUNCTION=$(terraform output -raw migration_lambda_name)
 
-      - aws lambda invoke \
-        --function-name "$MIGRATION_FUNCTION" \
-        migration-response.json
+      - aws lambda invoke --function-name "$MIGRATION_FUNCTION" migration-response.json
 
       - cat migration-response.json
 
@@ -119,9 +117,7 @@ phases:
 
       - export DISTRIBUTION_ID=$(terraform output -raw cloudfront_distribution_id)
 
-      - aws cloudfront create-invalidation \
-        --distribution-id "$DISTRIBUTION_ID" \
-        --paths "/*"
+      - aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*"
 
       - cd ..
 
