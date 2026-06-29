@@ -1,9 +1,3 @@
-data "archive_file" "this" {
-  type        = "zip"
-  source_dir  = var.source_path
-  output_path = "${path.module}/.terraform/${var.function_name}.zip"
-}
-
 resource "aws_cloudwatch_log_group" "this" {
 
   name = "/aws/lambda/${var.function_name}"
@@ -23,8 +17,8 @@ resource "aws_lambda_function" "this" {
 
   handler = var.handler
 
-  filename         = data.archive_file.this.output_path
-  source_code_hash = data.archive_file.this.output_base64sha256
+  filename         = var.deployment_package
+  source_code_hash = filebase64sha256(var.deployment_package)
 
   memory_size = var.memory_size
 

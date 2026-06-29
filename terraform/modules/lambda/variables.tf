@@ -3,9 +3,13 @@ variable "function_name" {
   type        = string
 }
 
-variable "source_path" {
-  description = "Path to the Lambda source code"
-  type        = string
+variable "deployment_package" {
+  type = string
+
+  validation {
+    condition     = fileexists(var.deployment_package)
+    error_message = "Deployment package not found. Build the Lambda package or run the CI/CD pipeline before running Terraform."
+  }
 }
 
 variable "handler" {

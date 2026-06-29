@@ -17,7 +17,7 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_region
+  region = "us-east-1"
 }
 
 ###############################################
@@ -169,7 +169,7 @@ module "website_bucket" {
 
   source = "./modules/s3"
 
-  bucket_name = "image-processing-website"
+  bucket_name = "image-processing-website-001"
 
   tags = local.tags
 }
@@ -244,7 +244,7 @@ module "uploads_bucket" {
 
   source = "./modules/s3"
 
-  bucket_name = "image-processing-uploads"
+  bucket_name = "image-processing-uploads-001"
 
   tags = local.tags
 }
@@ -396,7 +396,7 @@ module "database" {
 
   database_name = "imageprocessing"
 
-  username = var.db_username
+  username = "dbadmin"
 
   password = var.db_password
 
@@ -486,7 +486,7 @@ module "pre_token_lambda" {
 
   function_name = "image-processing-pre-token"
 
-  source_path = "../lambda/pre_token_generation"
+  deployment_package = "../lambda/pre_token_generation/pre_token_generation.zip"
 
   handler = "lambda_function.lambda_handler"
 
@@ -501,6 +501,23 @@ module "pre_token_lambda" {
   environment_variables = {}
 
   tags = local.tags
+}
+
+###############################################
+# Cognito -> Pre Token Lambda Permission
+###############################################
+
+resource "aws_lambda_permission" "pre_token_cognito" {
+
+  statement_id = "AllowExecutionFromCognito"
+
+  action = "lambda:InvokeFunction"
+
+  function_name = module.pre_token_lambda.function_name
+
+  principal = "cognito-idp.amazonaws.com"
+
+  source_arn = module.cognito.user_pool_arn
 }
 
 ###############################################
@@ -528,19 +545,6 @@ module "cognito" {
   pre_token_generation_lambda_arn = module.pre_token_lambda.function_arn
 
   tags = local.tags
-}
-
-###############################################
-# Cognito Groups
-###############################################
-
-resource "aws_cognito_user_group" "admins" {
-
-  name = "admins"
-
-  user_pool_id = module.cognito.user_pool_id
-
-  description = "Application administrators"
 }
 
 ###############################################
@@ -637,7 +641,7 @@ module "api_lambda" {
 
   function_name = "image-processing-api"
 
-  source_path = "../lambda/api"
+  deployment_package = "../lambda/api/api.zip"
 
   handler = "lambda_function.lambda_handler"
 
@@ -655,11 +659,15 @@ module "api_lambda" {
 
     DB_NAME = "imageprocessing"
 
-    DB_USER = var.db_username
+    DB_USER = "dbadmin"
 
     DB_PASSWORD = var.db_password
 
+    DB_PORT = module.database.port
+
     REDIS_HOST = module.redis.primary_endpoint
+
+    REDIS_PORT = module.redis.port
 
     UPLOAD_BUCKET = module.uploads_bucket.bucket_name
   }
@@ -692,6 +700,13 @@ resource "aws_iam_role_policy_attachment" "processor_vpc" {
   role = aws_iam_role.processor.name
 
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "processor_sqs" {
+
+  role = aws_iam_role.processor.name
+
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole"
 }
 
 ###############################################
@@ -772,7 +787,7 @@ module "processor_lambda" {
 
   function_name = "image-processing-processor"
 
-  source_path = "../lambda/processor"
+  deployment_package = "../lambda/processor/processor.zip"
 
   handler = "lambda_function.lambda_handler"
 
@@ -790,15 +805,19 @@ module "processor_lambda" {
 
     DB_NAME = "imageprocessing"
 
-    DB_USER = var.db_username
+    DB_USER = "dbadmin"
 
     DB_PASSWORD = var.db_password
 
+    DB_PORT = module.database.port
+
     REDIS_HOST = module.redis.primary_endpoint
+
+    REDIS_PORT = module.redis.port
 
     UPLOAD_BUCKET = module.uploads_bucket.bucket_name
 
-    TOPIC_ARN = module.notification_topic.topic_arn
+    SNS_TOPIC_ARN = module.notification_topic.topic_arn
   }
 
   tags = local.tags
@@ -829,6 +848,8 @@ module "api_gateway" {
 
   api_name = "image-processing-api"
 
+  cloudfront_domain_name = module.cloudfront.distribution_domain_name
+
   tags = local.tags
 }
 
@@ -854,7 +875,7 @@ resource "aws_apigatewayv2_authorizer" "jwt" {
       module.cognito.user_pool_client_id
     ]
 
-    issuer = "https://cognito-idp.${var.aws_region}.amazonaws.com/${module.cognito.user_pool_id}"
+    issuer = "https://cognito-idp.${"us-east-1"}.amazonaws.com/${module.cognito.user_pool_id}"
   }
 }
 
@@ -968,7 +989,7 @@ module "migration_lambda" {
 
   function_name = "image-processing-migration"
 
-  source_path = "../lambda/migration"
+  deployment_package = "../lambda/migration/migration.zip"
 
   handler = "lambda_function.lambda_handler"
 
@@ -986,12 +1007,270 @@ module "migration_lambda" {
 
     DB_NAME = "imageprocessing"
 
-    DB_USER = var.db_username
+    DB_USER = "dbadmin"
 
     DB_PASSWORD = var.db_password
+
+    DB_PORT = module.database.port
   }
 
   tags = local.tags
+}
+
+###############################################
+# Parameter Store
+###############################################
+
+resource "aws_ssm_parameter" "github_owner" {
+
+  name  = "/image-processing/github_owner"
+
+  type  = "String"
+
+  value = var.github_owner
+}
+
+resource "aws_ssm_parameter" "github_repository" {
+
+  name  = "/image-processing/github_repository"
+
+  type  = "String"
+
+  value = var.github_repository
+}
+
+resource "aws_ssm_parameter" "github_connection_arn" {
+
+  name  = "/image-processing/github_connection_arn"
+
+  type  = "String"
+
+  value = var.github_connection_arn
+}
+
+resource "aws_ssm_parameter" "notification_email" {
+
+  name  = "/image-processing/notification_email"
+
+  type  = "String"
+
+  value = var.notification_email
+}
+
+resource "aws_ssm_parameter" "db_password" {
+
+  name  = "/image-processing/db_password"
+
+  type  = "SecureString"
+
+  value = var.db_password
+}
+
+###############################################
+# CI/CD Infrastructure
+###############################################
+
+module "pipeline_artifacts_bucket" {
+
+  source = "./modules/s3"
+
+  bucket_name = "image-processing-pipeline-artifacts-001"
+}
+
+###############################################
+# CodeBuild IAM
+###############################################
+
+resource "aws_iam_role" "codebuild_role" {
+
+  name = "image-processing-codebuild-role"
+
+  assume_role_policy = jsonencode({
+
+    Version = "2012-10-17"
+
+    Statement = [
+
+      {
+
+        Effect = "Allow"
+
+        Principal = {
+
+          Service = "codebuild.amazonaws.com"
+
+        }
+
+        Action = "sts:AssumeRole"
+
+      }
+
+    ]
+
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "codebuild_admin" {
+
+  role = aws_iam_role.codebuild_role.name
+
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
+###############################################
+# CodeBuild
+###############################################
+
+module "codebuild" {
+
+  source = "./modules/codebuild"
+
+  project_name = "image-processing-build"
+
+  service_role_arn = aws_iam_role.codebuild_role.arn
+
+  artifact_bucket_name = module.pipeline_artifacts_bucket.bucket_name
+
+  github_owner_parameter = aws_ssm_parameter.github_owner.name
+
+  github_repository_parameter = aws_ssm_parameter.github_repository.name
+
+  github_connection_arn_parameter = aws_ssm_parameter.github_connection_arn.name
+
+  db_password_parameter = aws_ssm_parameter.db_password.name
+
+  notification_email_parameter = aws_ssm_parameter.notification_email.name
+}
+
+###############################################
+# CodePipeline IAM
+###############################################
+
+resource "aws_iam_role" "codepipeline_role" {
+
+  name = "image-processing-codepipeline-role"
+
+  assume_role_policy = jsonencode({
+
+    Version = "2012-10-17"
+
+    Statement = [
+
+      {
+
+        Effect = "Allow"
+
+        Principal = {
+
+          Service = "codepipeline.amazonaws.com"
+
+        }
+
+        Action = "sts:AssumeRole"
+
+      }
+
+    ]
+
+  })
+}
+
+resource "aws_iam_policy" "codepipeline_policy" {
+
+  name = "image-processing-codepipeline-policy"
+
+  policy = jsonencode({
+
+    Version = "2012-10-17"
+
+    Statement = [
+
+      {
+
+        Effect = "Allow"
+
+        Action = [
+
+          "s3:GetObject",
+          "s3:GetObjectVersion",
+          "s3:PutObject",
+          "s3:ListBucket"
+
+        ]
+
+        Resource = [
+
+          module.pipeline_artifacts_bucket.bucket_arn,
+          "${module.pipeline_artifacts_bucket.bucket_arn}/*"
+
+        ]
+
+      },
+
+      {
+
+        Effect = "Allow"
+
+        Action = [
+
+          "codebuild:StartBuild",
+          "codebuild:BatchGetBuilds"
+
+        ]
+
+        Resource = module.codebuild.project_arn
+
+      },
+
+      {
+
+        Effect = "Allow"
+
+        Action = [
+
+          "codestar-connections:UseConnection"
+
+        ]
+
+        Resource = var.github_connection_arn
+
+      }
+
+    ]
+
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "codepipeline_policy_attachment" {
+
+  role = aws_iam_role.codepipeline_role.name
+
+  policy_arn = aws_iam_policy.codepipeline_policy.arn
+}
+
+###############################################
+# CodePipeline
+###############################################
+
+module "codepipeline" {
+
+  source = "./modules/codepipeline"
+
+  pipeline_name = "image-processing-pipeline"
+
+  service_role_arn = aws_iam_role.codepipeline_role.arn
+
+  artifact_bucket_name = module.pipeline_artifacts_bucket.bucket_name
+
+  codebuild_project_name = module.codebuild.project_name
+
+  github_owner = var.github_owner
+
+  github_repository = var.github_repository
+
+  github_branch = "main"
+
+  github_connection_arn = var.github_connection_arn
 }
 
 ###############################################
@@ -1045,12 +1324,12 @@ resource "aws_s3_object" "config" {
 
   content = templatefile("${path.module}/../website/config.js.tpl", {
 
-    region         = var.aws_region
+    region         = "us-east-1"
     api_url        = module.api_gateway.api_endpoint
     user_pool_id   = module.cognito.user_pool_id
     client_id      = module.cognito.user_pool_client_id
     cognito_domain = module.cognito.user_pool_domain
-    cloudfront_url = module.cloudfront.distribution_domain_name
+    cloudfront_url = "https://${module.cloudfront.distribution_domain_name}"
   })
 
   content_type = "application/javascript"

@@ -38,7 +38,7 @@ resource "aws_cognito_user_pool" "this" {
 
   mfa_configuration = "OFF"
 
-  deletion_protection = "ACTIVE"
+  deletion_protection = "INACTIVE"
 
   tags = var.tags
 }

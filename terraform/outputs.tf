@@ -8,6 +8,12 @@ output "frontend_url" {
   value = "https://${module.cloudfront.distribution_domain_name}"
 }
 
+output "cloudfront_distribution_id" {
+  description = "CloudFront Distribution ID"
+
+  value = module.cloudfront.distribution_id
+}
+
 ###############################################
 # API Gateway
 ###############################################
@@ -68,4 +74,23 @@ output "redis_endpoint" {
   description = "Redis Primary Endpoint"
 
   value = module.redis.primary_endpoint
+}
+
+###############################################
+# CI/CD
+###############################################
+
+output "codebuild_project_name" {
+
+  value = module.codebuild.project_name
+}
+
+output "migration_lambda_name" {
+
+  value = module.migration_lambda.function_name
+}
+
+output "codepipeline_name" {
+
+  value = module.codepipeline.pipeline_name
 }

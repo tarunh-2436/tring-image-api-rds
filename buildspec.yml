@@ -1,0 +1,126 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.13
+
+    commands:
+      - yum install -y zip unzip
+      - echo "Installing Terraform..."
+      - curl -fsSL https://releases.hashicorp.com/terraform/1.13.1/terraform_1.13.1_linux_amd64.zip -o terraform.zip
+      - unzip terraform.zip
+      - mv terraform /usr/local/bin/
+      - terraform version
+
+  build:
+    commands:
+      ###########################################################
+      # API Lambda
+      ###########################################################
+
+      - echo "Packaging API Lambda..."
+      - rm -f lambda/api/api.zip
+      - rm -rf lambda/api/package
+      - mkdir -p lambda/api/package
+      - pip install -r lambda/api/requirements.txt -t lambda/api/package
+      - cp lambda/api/lambda_function.py lambda/api/package/
+      - cd lambda/api/package
+      - zip -r ../api.zip .
+      - cd ../../..
+      - rm -rf lambda/api/package
+
+      ###########################################################
+      # Processor Lambda
+      ###########################################################
+
+      - echo "Packaging Processor Lambda..."
+      - rm -f lambda/processor/processor.zip
+      - rm -rf lambda/processor/package
+      - mkdir -p lambda/processor/package
+      - pip install -r lambda/processor/requirements.txt -t lambda/processor/package
+      - cp lambda/processor/lambda_function.py lambda/processor/package/
+      - cd lambda/processor/package
+      - zip -r ../processor.zip .
+      - cd ../../..
+      - rm -rf lambda/processor/package
+
+      ###########################################################
+      # Migration Lambda
+      ###########################################################
+
+      - echo "Packaging Migration Lambda..."
+      - rm -f lambda/migration/migration.zip
+      - rm -rf lambda/migration/package
+      - mkdir -p lambda/migration/package
+      - pip install -r lambda/migration/requirements.txt -t lambda/migration/package
+      - cp lambda/migration/lambda_function.py lambda/migration/package/
+      - cp lambda/migration/schema.sql lambda/migration/package/
+      - cd lambda/migration/package
+      - zip -r ../migration.zip .
+      - cd ../../..
+      - rm -rf lambda/migration/package
+
+      ###########################################################
+      # Pre Token Lambda
+      ###########################################################
+
+      - echo "Packaging Pre Token Lambda..."
+      - rm -f lambda/pre_token_generation/pre_token_generation.zip
+      - rm -rf lambda/pre_token_generation/package
+      - mkdir -p lambda/pre_token_generation/package
+      - cp lambda/pre_token_generation/lambda_function.py lambda/pre_token_generation/package/
+      - cd lambda/pre_token_generation/package
+      - zip -r ../pre_token_generation.zip .
+      - cd ../../..
+      - rm -rf lambda/pre_token_generation/package
+
+      ###########################################################
+      # Terraform
+      ###########################################################
+
+      - echo "Deploying Infrastructure..."
+      - cd terraform
+      - terraform init
+      - terraform validate
+      - terraform plan -out=tfplan
+      - terraform apply -auto-approve tfplan
+      - cd ..
+
+  post_build:
+    commands:
+      ###########################################################
+      # Database Migration
+      ###########################################################
+
+      - echo "Running database migration..."
+
+      - cd terraform
+
+      - export MIGRATION_FUNCTION=$(terraform output -raw migration_lambda_name)
+
+      - aws lambda invoke \
+        --function-name "$MIGRATION_FUNCTION" \
+        migration-response.json
+
+      - cat migration-response.json
+
+      - grep -q '"FunctionError"' migration-response.json && exit 1 || true
+
+      ###########################################################
+      # CloudFront Cache Invalidation
+      ###########################################################
+
+      - echo "Invalidating CloudFront cache..."
+
+      - export DISTRIBUTION_ID=$(terraform output -raw cloudfront_distribution_id)
+
+      - aws cloudfront create-invalidation \
+        --distribution-id "$DISTRIBUTION_ID" \
+        --paths "/*"
+
+      - cd ..
+
+artifacts:
+  files:
+    - "**/*"
